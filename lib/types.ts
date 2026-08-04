@@ -15,6 +15,11 @@ export interface VideoFormat {
   label: string; // e.g. "1080p" or "MP3"
   container: string; // e.g. "mp4", "mp3"
   fileSize: string; // display string, e.g. "84.2 MB"
+  url?: string;
+  formatId?: string;
+  videoUrl?: string;
+  resolution?: number;
+  needsMux?: boolean;
 }
 
 export interface VideoInfo {
@@ -24,6 +29,7 @@ export interface VideoInfo {
   duration: string; // "12:34"
   uploadDate: string; // display string
   views?: string;
+  thumbnailUrl?: string;
   thumbnailLabel: string; // short label used on the placeholder thumbnail
   formats: VideoFormat[];
 }

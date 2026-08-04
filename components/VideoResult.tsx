@@ -10,9 +10,17 @@ export function VideoResult({ video, onDownload }: VideoResultProps) {
   return (
     <div className="flex flex-col gap-5 rounded-lg border border-border bg-surface p-5">
       <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="relative flex h-32 w-full flex-none items-center justify-center rounded-md bg-border sm:w-56">
-          <span className="text-xs font-medium text-text-secondary">{video.thumbnailLabel}</span>
-          <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white">
+        <div className="relative flex h-36 w-full flex-none items-center justify-center overflow-hidden rounded-md bg-border sm:w-56">
+          {video.thumbnailUrl ? (
+            <img
+              src={video.thumbnailUrl}
+              alt={video.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="text-xs font-medium text-text-secondary">{video.thumbnailLabel}</span>
+          )}
+          <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-medium text-white">
             {video.duration}
           </span>
         </div>

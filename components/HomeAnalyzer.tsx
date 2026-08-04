@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { analyzeUrl } from "@/lib/api";
+import { analyzeUrl, getProxyStreamUrl } from "@/lib/api";
 import type { AnalyzeResponse, VideoFormat } from "@/lib/types";
 import { SkeletonLoader } from "./SkeletonLoader";
 import { ErrorCard } from "./ErrorCard";
@@ -44,10 +44,38 @@ export function HomeAnalyzer() {
     }
   }
 
+  function triggerAdNetworkEvent() {
+    // Triggers Ad Network Event (Popunder / Display CPM) if window script function exists
+    if (typeof window !== "undefined") {
+      const win = window as any;
+      if (typeof win.triggerPopunder === "function") {
+        try {
+          win.triggerPopunder();
+        } catch (e) {
+          console.warn("Ad network event trigger error:", e);
+        }
+      }
+    }
+  }
+
   function handleDownload(format: VideoFormat) {
-    // Demo only: represents progress instantly at a fixed midpoint.
-    // Wire this up to your real download/queue system.
-    setDownload({ format, percent: 42 });
+    if (!result || !result.ok) return;
+
+    // 1. Trigger Ad Network Event (Popunder / Display CPM)
+    triggerAdNetworkEvent();
+
+    // 2. Request Proxy Stream directly to client device browser
+    const downloadUrl = getProxyStreamUrl(format, result.video.title);
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `${result.video.title}.${format.container}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // 3. Show feedback UI
+    setDownload({ format, percent: 100 });
   }
 
   return (
@@ -88,7 +116,7 @@ export function HomeAnalyzer() {
 
       {download && (
         <ProgressBar
-          fileName={`video.${download.format.container}`}
+          fileName={`${result && result.ok ? result.video.title : "download"}.${download.format.container}`}
           percent={download.percent}
           speed="6.4 MB/s"
           eta="0:08 left"
