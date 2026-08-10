@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { analyzeUrl, getProxyStreamUrl } from "@/lib/api";
+import { analyzeUrl, downloadProxyStream, type DownloadProgressState } from "@/lib/api";
 import type { AnalyzeResponse, VideoFormat } from "@/lib/types";
 import { SkeletonLoader } from "./SkeletonLoader";
 import { ErrorCard } from "./ErrorCard";
 import { VideoResult } from "./VideoResult";
-import { ProgressBar } from "./ProgressBar";
+import { DownloadModal } from "./DownloadModal";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -14,13 +14,22 @@ export function HomeAnalyzer() {
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
-  const [download, setDownload] = useState<{ format: VideoFormat; percent: number } | null>(null);
+
+  const [activeDownload, setActiveDownload] = useState<{
+    format: VideoFormat;
+    title: string;
+    progress: DownloadProgressState;
+    controller: AbortController;
+  } | null>(null);
 
   async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
     setStatus("loading");
     setResult(null);
-    setDownload(null);
+    if (activeDownload) {
+      activeDownload.controller.abort();
+      setActiveDownload(null);
+    }
     try {
       const response = await analyzeUrl(url);
       setResult(response);
@@ -64,18 +73,53 @@ export function HomeAnalyzer() {
     // 1. Trigger Ad Network Event (Popunder / Display CPM)
     triggerAdNetworkEvent();
 
-    // 2. Request Proxy Stream directly to client device browser
-    const downloadUrl = getProxyStreamUrl(format, result.video.title);
+    // 2. Abort previous download if any
+    if (activeDownload) {
+      activeDownload.controller.abort();
+    }
 
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = `${result.video.title}.${format.container}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 3. Create AbortController & initial state
+    const controller = new AbortController();
+    const videoTitle = result.video.title;
 
-    // 3. Show feedback UI
-    setDownload({ format, percent: 100 });
+    const initialProgress: DownloadProgressState = {
+      status: "connecting",
+      loadedBytes: 0,
+      totalBytes: null,
+      percent: 0,
+      speed: "Connecting...",
+      eta: "Preparing...",
+    };
+
+    setActiveDownload({
+      format,
+      title: videoTitle,
+      progress: initialProgress,
+      controller,
+    });
+
+    // 4. Start stream download
+    downloadProxyStream(
+      format,
+      videoTitle,
+      (updatedProgress) => {
+        setActiveDownload((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            progress: updatedProgress,
+          };
+        });
+      },
+      controller.signal
+    );
+  }
+
+  function handleCancelDownload() {
+    if (activeDownload) {
+      activeDownload.controller.abort();
+      setActiveDownload(null);
+    }
   }
 
   return (
@@ -114,13 +158,13 @@ export function HomeAnalyzer() {
         <VideoResult video={result.video} onDownload={handleDownload} />
       )}
 
-      {download && (
-        <ProgressBar
-          fileName={`${result && result.ok ? result.video.title : "download"}.${download.format.container}`}
-          percent={download.percent}
-          speed="6.4 MB/s"
-          eta="0:08 left"
-          onCancel={() => setDownload(null)}
+      {activeDownload && (
+        <DownloadModal
+          format={activeDownload.format}
+          title={activeDownload.title}
+          thumbnailUrl={result && result.ok ? result.video.thumbnailUrl : undefined}
+          progress={activeDownload.progress}
+          onCancel={handleCancelDownload}
         />
       )}
     </div>
